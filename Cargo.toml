@@ -11,4 +11,8 @@ base64 = "*"
 clap = "3.0.0-beta.1"
 lettre = "*"
 lettre_email = "*"
+reqwest = { version = "*", features = ["blocking", "json"] }
+serde = "*"
+serde_derive = "*"
 serde_json = "*"
+url = "*"

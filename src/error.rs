@@ -1,6 +1,7 @@
 use std::env;
 use std::fmt;
 use std::io;
+use std::io::Read;
 
 use lettre;
 use lettre_email;
@@ -15,6 +16,8 @@ pub enum Error {
     SerdeError(serde_json::error::Error),
     LettreEmailError(lettre_email::error::Error),
     LettreSmtpError(lettre::smtp::error::Error),
+    ReqwestError(reqwest::Error),
+    HttpError(reqwest::StatusCode, String),
 }
 
 impl fmt::Display for Error {
@@ -27,6 +30,8 @@ impl fmt::Display for Error {
             Error::SerdeError(ref err) => write!(f, "Serde error: {}", err),
             Error::LettreEmailError(ref err) => write!(f, "Lettre Email error: {}", err),
             Error::LettreSmtpError(ref err) => write!(f, "Lettre Smtp error: {}", err),
+            Error::ReqwestError(ref err) => write!(f, "Reqwest error: {}", err),
+            Error::HttpError(ref status, ref msg) => write!(f, "HTTP error: {}\n{}", status, msg),
         }
     }
 }
@@ -58,5 +63,23 @@ impl From<lettre_email::error::Error> for Error {
 impl From<lettre::smtp::error::Error> for Error {
     fn from(err: lettre::smtp::error::Error) -> Error {
         Error::LettreSmtpError(err)
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(err: reqwest::Error) -> Error {
+        Error::ReqwestError(err)
+    }
+}
+
+impl From<reqwest::blocking::Response> for Error {
+    fn from(mut res: reqwest::blocking::Response) -> Error {
+        let mut body = String::new();
+        let result = res.read_to_string(&mut body);
+        if result.is_ok() {
+            Error::HttpError(res.status(), body)
+        } else {
+            Error::from(result.unwrap_err())
+        }
     }
 }

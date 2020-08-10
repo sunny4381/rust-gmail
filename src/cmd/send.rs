@@ -1,14 +1,21 @@
 use std::fs;
+use std::io::Read;
 
 use base64;
 use clap::Clap;
-use lettre::smtp::authentication::IntoCredentials;
-use lettre::{SmtpClient, Transport};
+use lettre::SendableEmail;
 use lettre_email::Email;
+use serde_json::json;
 
 use super::base::Cmd;
 use crate::config::Config;
 use crate::error::Error;
+use crate::goauth::USER_AGENT;
+
+const SEND_API_URL: &'static str = "https://content.googleapis.com/gmail/v1/users/me/messages/send";
+
+// below api is listed on Google's reference, but it is hard to find the way to send message.
+// const SEND_API_URL: &'static str = "https://www.googleapis.com/upload/gmail/v1/users/me/messages/send";
 
 #[derive(Clap)]
 pub struct SendCmd {
@@ -39,20 +46,35 @@ impl Cmd for SendCmd {
 
         let text = fs::read_to_string(&self.body_file)?;
 
-        let email = Email::builder()
-            .from(config.username.as_str())
+        let email: SendableEmail = Email::builder()
+            .from(config.email_from.as_str())
             .to(self.to.as_str())
             .subject(encode_subject(self.subject.as_str()))
             .text(text)
-            .build()?;
+            .build()?
+            .into();
 
-        let credentials = (config.username.as_str(), config.password.as_str()).into_credentials();
-        let mut mailer = SmtpClient::new_simple("smtp.gmail.com")?
-            .credentials(credentials)
-            .smtp_utf8(true)
-            .transport();
+        let mut message_content = String::new();
+        email.message().read_to_string(&mut message_content)?;
 
-        mailer.send(email.into())?;
+        let base64_content: String = base64::encode_config(message_content.as_bytes(), base64::URL_SAFE);
+
+        let request_json: serde_json::value::Value = json!({
+            "raw": base64_content
+        });
+
+        let access_token = config.access_token;
+
+        let client = reqwest::blocking::Client::new();
+        let req = client.post(SEND_API_URL)
+            .bearer_auth(access_token)
+            .header(reqwest::header::USER_AGENT, USER_AGENT)
+            .json(&request_json);
+
+        let res = req.send()?;
+        if !res.status().is_success() {
+            return Err(Error::from(res));
+        }
 
         Ok(())
     }

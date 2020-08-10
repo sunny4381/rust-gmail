@@ -1,6 +1,7 @@
 mod cmd;
 mod config;
 mod error;
+mod goauth;
 
 use std::io::{self, Write};
 use clap::Clap;
