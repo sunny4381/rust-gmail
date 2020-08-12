@@ -7,7 +7,7 @@ use lettre::SendableEmail;
 use lettre_email::Email;
 use serde_json::json;
 
-use super::base::Cmd;
+use super::base::{Cmd, retry};
 use crate::config::Config;
 use crate::error::Error;
 use crate::goauth::USER_AGENT;
@@ -40,22 +40,6 @@ fn encode_subject(subject: &str) -> String {
     }
 
     ret
-}
-
-fn retry(tries: u16, callback: impl Fn() -> Result<(), Error>, before_retry: impl Fn() -> Result<(), Error>) -> Result<(), Error> {
-    let result = callback();
-    if tries == 0 {
-        return result;
-    }
-
-    match result {
-        Ok(_) => result,
-        Err(_) => {
-            std::thread::sleep(std::time::Duration::from_millis(1000));
-            before_retry()?;
-            retry(tries - 1, callback, before_retry)
-        }
-    }
 }
 
 impl Cmd for SendCmd {
