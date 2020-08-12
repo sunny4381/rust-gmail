@@ -13,7 +13,7 @@ use crate::cmd::send::SendCmd;
 use crate::cmd::refresh::RefreshCmd;
 use crate::cmd::whoami::WhoamiCmd;
 
-const MAX_TRIES: u16 = 3;
+const MAX_TRIES: u8 = 3;
 
 #[derive(Clap)]
 #[clap(version = "0.1.0", author = "NAKANO Hideo <pinarello.marvel@gmail.com>")]
