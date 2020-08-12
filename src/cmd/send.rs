@@ -11,8 +11,10 @@ use super::base::Cmd;
 use crate::config::Config;
 use crate::error::Error;
 use crate::goauth::USER_AGENT;
+use crate::cmd::refresh::RefreshCmd;
 
 const SEND_API_URL: &'static str = "https://content.googleapis.com/gmail/v1/users/me/messages/send";
+const MAX_TRIES: u16 = 3;
 
 // below api is listed on Google's reference, but it is hard to find the way to send message.
 // const SEND_API_URL: &'static str = "https://www.googleapis.com/upload/gmail/v1/users/me/messages/send";
@@ -40,42 +42,66 @@ fn encode_subject(subject: &str) -> String {
     ret
 }
 
+fn retry(tries: u16, callback: impl Fn() -> Result<(), Error>, before_retry: impl Fn() -> Result<(), Error>) -> Result<(), Error> {
+    let result = callback();
+    if tries == 0 {
+        return result;
+    }
+
+    match result {
+        Ok(_) => result,
+        Err(_) => {
+            std::thread::sleep(std::time::Duration::from_millis(1000));
+            before_retry()?;
+            retry(tries - 1, callback, before_retry)
+        }
+    }
+}
+
 impl Cmd for SendCmd {
     fn run(&self) -> Result<(), Error> {
-        let config = Config::load("default")?;
+        let run1 = || -> Result<(), Error> {
+            let config = Config::load("default")?;
 
-        let text = fs::read_to_string(&self.body_file)?;
+            let text = fs::read_to_string(&self.body_file)?;
 
-        let email: SendableEmail = Email::builder()
-            .from(config.email_from.as_str())
-            .to(self.to.as_str())
-            .subject(encode_subject(self.subject.as_str()))
-            .text(text)
-            .build()?
-            .into();
+            let email: SendableEmail = Email::builder()
+                .from(config.email_from.as_str())
+                .to(self.to.as_str())
+                .subject(encode_subject(self.subject.as_str()))
+                .text(text)
+                .build()?
+                .into();
 
-        let mut message_content = String::new();
-        email.message().read_to_string(&mut message_content)?;
+            let mut message_content = String::new();
+            email.message().read_to_string(&mut message_content)?;
 
-        let base64_content: String = base64::encode_config(message_content.as_bytes(), base64::URL_SAFE);
+            let base64_content: String = base64::encode_config(message_content.as_bytes(), base64::URL_SAFE);
 
-        let request_json: serde_json::value::Value = json!({
-            "raw": base64_content
-        });
+            let request_json: serde_json::value::Value = json!({
+                "raw": base64_content
+            });
 
-        let access_token = config.access_token;
+            let access_token = config.access_token;
 
-        let client = reqwest::blocking::Client::new();
-        let req = client.post(SEND_API_URL)
-            .bearer_auth(access_token)
-            .header(reqwest::header::USER_AGENT, USER_AGENT)
-            .json(&request_json);
+            let client = reqwest::blocking::Client::new();
+            let req = client.post(SEND_API_URL)
+                .bearer_auth(access_token)
+                .header(reqwest::header::USER_AGENT, USER_AGENT)
+                .json(&request_json);
 
-        let res = req.send()?;
-        if !res.status().is_success() {
-            return Err(Error::from(res));
-        }
+            let res = req.send()?;
+            if !res.status().is_success() {
+                return Err(Error::from(res));
+            }
 
-        Ok(())
+            Ok(())
+        };
+
+        let before_retry = || -> Result<(), Error> {
+            RefreshCmd {}.run()
+        };
+
+        retry(MAX_TRIES, run1, before_retry)
     }
 }
