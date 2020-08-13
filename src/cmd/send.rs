@@ -79,3 +79,23 @@ impl Cmd for SendCmd {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_encode_subject1() {
+        assert_eq!(encode_subject("日本語テスト"), "=?UTF-8?B?5pel5pys6Kqe44OG44K544OI?=");
+    }
+
+    #[test]
+    fn test_encode_subject2() {
+        assert_eq!(encode_subject("徳島ヴォルティス 公式の更新通知"), "=?UTF-8?B?5b6z5bO244O044Kp44Or44OG44Kj44K5IOWFrOW8j+OBruabtOaWsOmA?=\r\n =?UTF-8?B?muefpQ==?=");
+    }
+
+    #[test]
+    fn test_encode_subject3() {
+        assert_eq!(encode_subject("【更新通知】ヴォルティススタジアム"), "=?UTF-8?B?44CQ5pu05paw6YCa55+l44CR44O044Kp44Or44OG44Kj44K544K544K/?=\r\n =?UTF-8?B?44K444Ki44Og?=");
+    }
+}
