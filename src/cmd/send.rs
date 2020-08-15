@@ -22,7 +22,7 @@ pub struct SendCmd {
     #[clap(long)]
     pub subject: String,
     #[clap(long)]
-    pub to: String,
+    pub to: Vec<String>,
     pub body_file: String,
 }
 
@@ -46,9 +46,11 @@ impl Cmd for SendCmd {
 
         let text = fs::read_to_string(&self.body_file)?;
 
-        let email: SendableEmail = Email::builder()
-            .from(config.email_from.as_str())
-            .to(self.to.as_str())
+        let mut email_builder = Email::builder().from(config.email_from.as_str());
+        for to in &self.to {
+            email_builder = email_builder.to(to.as_str());
+        }
+        let email: SendableEmail = email_builder
             .subject(encode_subject(self.subject.as_str()))
             .text(text)
             .build()?
