@@ -23,6 +23,8 @@ pub struct SendCmd {
     pub subject: String,
     #[clap(long)]
     pub to: Vec<String>,
+    #[clap(long)]
+    pub list_id: Option<String>,
     pub body_file: String,
 }
 
@@ -49,6 +51,9 @@ impl Cmd for SendCmd {
         let mut email_builder = Email::builder().from(config.email_from.as_str());
         for to in &self.to {
             email_builder = email_builder.to(to.as_str());
+        }
+        if let Some(list_id) = &self.list_id {
+            email_builder = email_builder.header(("List-Id", list_id));
         }
         let email: SendableEmail = email_builder
             .subject(encode_subject(self.subject.as_str()))
